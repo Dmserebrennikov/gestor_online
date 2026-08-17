@@ -8,7 +8,7 @@ MediaKind = Literal["photo", "video", "document", "audio", "voice", "other"]
 
 
 class MediaAttachment(BaseModel):
-    """File attached to a Telegram message (metadata only until media stage)."""
+    """File attached to a Telegram message"""
 
     kind: MediaKind
     telegram_file_id: str

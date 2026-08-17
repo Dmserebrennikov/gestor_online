@@ -5,14 +5,14 @@ Async FastAPI backend that receives Telegram forum-topic messages and acknowledg
 ## Current stages
 
 - **Stage 1** — webhook + normalize to `InboundMessage` / `MediaAttachment`
-- **Stage 2** — auto-reply ack in the same forum topic
+- **Stage 2** — auto-reply ack in the same forum topic; inbound files are downloaded into `backend/media/<kind>/`
 
 Endpoints:
 
 - `POST /telegram/webhook` — validates `X-Telegram-Bot-Api-Secret-Token`, maps the Update, logs it, sends an ack reply, returns `{"ok": true}`
 - `GET /health` — liveness check
 
-No media download or LLM yet.
+Attachments (photo, video, document, audio, voice) are saved under `backend/media/<kind>/`. No LLM yet.
 
 ### Setup
 
@@ -94,6 +94,7 @@ cloudflared tunnel run telegram
 1. Add the bot to a forum group and send a message in a topic (text, photo, or PDF).
 2. Server logs should show a structured `InboundMessage` with `chat_id`, `thread_id`, text preview, and attachment metadata (`file_id`, kind, mime).
 3. The bot should reply in the same topic with the acknowledgement message.
+4. Attachments should appear under `backend/media/photo/`, `video/`, `document/`, `audio/`, or `voice/`.
 
 ### Project layout
 
@@ -104,6 +105,7 @@ backend/
     config.py
     api/telegram.py
     telegram/adapter.py
+    telegram/media.py
     telegram/sender.py
     domain/models.py
   pyproject.toml
