@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
@@ -14,8 +15,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    telegram_bot_token: str = ""
-    telegram_webhook_secret: str
+    telegram_bot_token: str = Field(min_length=1)
+    telegram_webhook_secret: str = Field(min_length=1)
 
 
 settings = Settings()
