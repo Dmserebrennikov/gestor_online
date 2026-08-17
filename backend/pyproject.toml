@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.32.0",
     "pydantic-settings>=2.6.0",
     "python-dotenv>=1.0.0",
+    "httpx>=0.28.0",
 ]
 
 [build-system]
@@ -17,5 +18,19 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
 
+[dependency-groups]
+dev = [
+    "ruff>=0.12.0",
+]
+
 [tool.uv]
 package = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+# Explicit select so this project does not inherit a user-level Ruff config.
+# E501 is off in Ruff's defaults; enable it so `ruff check` enforces line-length.
+select = ["E4", "E7", "E9", "F", "E501"]
