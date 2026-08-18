@@ -6,7 +6,7 @@ from fastapi import APIRouter, Header, HTTPException, Request, status
 from app.config import settings
 from app.telegram.adapter import adapt_update
 from app.telegram.media import store_inbound_attachments
-from app.telegram.sender import send_ack
+from app.telegram.sender import send_ack, send_bot_reaction
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +25,26 @@ async def telegram_webhook(
     request: Request,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
 ) -> dict[str, bool]:
-    """Receive a Telegram Update, normalize it, log it, and send an ack reply."""
+    """Receive a Telegram Update, react to it, log it, and send an ack reply."""
     validate_token(x_telegram_bot_api_secret_token, settings.telegram_webhook_secret)
 
     update: dict[str, Any] = await request.json()
     inbound = adapt_update(update)
     if inbound is None:
-        logger.debug("Ignoring non-message update_id=%s", update.get("update_id"))
+        logger.debug(f"Ignoring non-message update_id={update.get('update_id')}")
         return {"ok": True}
+
+    try:
+        await send_bot_reaction(
+            chat_id=inbound.chat_id,
+            message_id=inbound.telegram_message_id,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to set reaction chat_id=%s message_id=%s",
+            inbound.chat_id,
+            inbound.telegram_message_id,
+        )
 
     await store_inbound_attachments(inbound)
 
