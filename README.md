@@ -14,6 +14,20 @@ Endpoints:
 
 Attachments (photo, video, document, audio, voice) are saved under `backend/media/<kind>/`. No LLM yet.
 
+### Postgres (Docker)
+
+Isolated Linux Postgres via [Docker Compose](https://docs.docker.com/compose/). Host port **5433** so a Windows Postgres install can keep **5432**.
+
+From the repo root (requires [Docker Desktop](https://docs.docker.com/desktop/)):
+
+```bash
+docker compose up -d    # start in the background
+docker compose ps       # confirm db is running / healthy
+docker compose down     # stop; data stays in the pgdata volume
+```
+
+The app default is `postgresql+asyncpg://gestor:gestor@localhost:5433/gestor` (`DATABASE_URL` in `backend/.env`). Alembic and SQLAlchemy are not wired yet — this only runs the database process.
+
 ### Setup
 
 Requires [uv](https://docs.astral.sh/uv/).
@@ -28,6 +42,7 @@ Edit `.env`:
 
 - `TELEGRAM_BOT_TOKEN` — from [@BotFather](https://t.me/BotFather) (required for ack replies)
 - `TELEGRAM_WEBHOOK_SECRET` — long random string; must match the `secret_token` you pass to `setWebhook`
+- `DATABASE_URL` — optional; defaults to the Docker Compose Postgres on port 5433
 
 `uv sync` installs runtime dependencies and the `dev` group (Ruff). For a runtime-only env: `uv sync --no-dev`.
 
@@ -78,12 +93,17 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getWebhookInfo"
 
 ### Start
 
-#### 1. Run backend from `backend/` directory:
+#### 1. Start Postgres from the repo root:
+```
+docker compose up -d
+```
+
+#### 2. Run backend from `backend/` directory:
 ```
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-#### 2. Run cloudflared:
+#### 3. Run cloudflared:
 ```
 cloudflared tunnel run telegram
 ```
@@ -99,6 +119,7 @@ cloudflared tunnel run telegram
 ### Project layout
 
 ```
+docker-compose.yml
 backend/
   app/
     main.py

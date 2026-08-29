@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     telegram_bot_token: str = Field(min_length=1)
     telegram_webhook_secret: str = Field(min_length=1)
+    database_url: str = "postgresql+asyncpg://gestor:gestor@localhost:5433/gestor"
 
 
 settings = Settings()
