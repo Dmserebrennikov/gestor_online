@@ -14,35 +14,56 @@ Endpoints:
 
 Attachments (photo, video, document, audio, voice) are saved under `backend/media/<kind>/`. No LLM yet.
 
-### Postgres (Docker)
+### Env and Postgres (Docker)
 
-Isolated Linux Postgres via [Docker Compose](https://docs.docker.com/compose/). Host port **5433** so a Windows Postgres install can keep **5432**.
+One **repo-root** `.env` (gitignored) is the source of truth. [docker-compose.yml](docker-compose.yml) requires `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, and `POSTGRES_PORT` from that file (no defaults in the YAML). FastAPI `Settings` reads the same file; it still has code defaults if a key is omitted there.
+
+`.env` is never committed. Copy the example:
+
+```bash
+copy .env.example .env   # or: cp .env.example .env
+```
+
+`backend/.env` still works as a fallback if you already have one. Prefer moving Telegram tokens into the root `.env`.
+
+Isolated Linux Postgres via [Docker Compose](https://docs.docker.com/compose/). Host port **5433** so a Windows Postgres install can keep **5432**. On a server, put the real password only in `.env`; do not edit secrets into the YAML. Alembic and SQLAlchemy are not wired yet — this only runs the database process.
 
 From the repo root (requires [Docker Desktop](https://docs.docker.com/desktop/)):
 
 ```bash
 docker compose up -d    # start in the background
 docker compose ps       # confirm db is running / healthy
-docker compose down     # stop; data stays in the pgdata volume
 ```
 
-The app default is `postgresql+asyncpg://gestor:gestor@localhost:5433/gestor` (`DATABASE_URL` in `backend/.env`). Alembic and SQLAlchemy are not wired yet — this only runs the database process.
+Check that the app can log in (same host/port/user as `.env`). From the repo root:
+
+```bash
+uv run --directory backend python scripts/check_db.py
+```
+
+Or `cd backend` and then `uv run python scripts/check_db.py`.
+
+You should see `OK` and the Postgres version. Then:
+
+```bash
+docker compose down     # stop; data stays in the pgdata volume
+```
 
 ### Setup
 
 Requires [uv](https://docs.astral.sh/uv/).
 
 ```bash
+copy .env.example .env   # repo root — Compose + app
 cd backend
 uv sync
-copy .env.example .env   # or: cp .env.example .env
 ```
 
-Edit `.env`:
+Edit the **root** `.env`:
 
 - `TELEGRAM_BOT_TOKEN` — from [@BotFather](https://t.me/BotFather) (required for ack replies)
 - `TELEGRAM_WEBHOOK_SECRET` — long random string; must match the `secret_token` you pass to `setWebhook`
-- `DATABASE_URL` — optional; defaults to the Docker Compose Postgres on port 5433
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT` — required for `docker compose` (copy from `.env.example`). `POSTGRES_ENGINE` / `POSTGRES_HOST` are for the app only.
 
 `uv sync` installs runtime dependencies and the `dev` group (Ruff). For a runtime-only env: `uv sync --no-dev`.
 
@@ -93,10 +114,25 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getWebhookInfo"
 
 ### Start
 
-#### 1. Start Postgres from the repo root:
+#### 1. Run the database
+
+1. Start Postgres database from the repo root:
+```bash
+docker compose up -d    # start in the background
 ```
-docker compose up -d
+
+2. Ensure the database is accessible through the app:
+```bash
+uv run --directory backend python scripts/check_db.py
 ```
+You should see `OK` and the Postgres version.
+
+Some additional functionality you may need later:
+```bash
+docker compose ps       # confirm db is running / healthy
+docker compose down     # stop; data stays in the pgdata volume
+```
+
 
 #### 2. Run backend from `backend/` directory:
 ```
@@ -119,6 +155,7 @@ cloudflared tunnel run telegram
 ### Project layout
 
 ```
+.env.example
 docker-compose.yml
 backend/
   app/
@@ -129,7 +166,7 @@ backend/
     telegram/media.py
     telegram/sender.py
     domain/models.py
+  scripts/check_db.py
   pyproject.toml
   uv.lock
-  .env.example
 ```
