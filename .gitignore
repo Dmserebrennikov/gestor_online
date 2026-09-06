@@ -65,6 +65,7 @@ ehthumbs.db
 Desktop.ini
 
 # Editors / IDEs
+.cursor/
 .idea/
 .vscode/*
 !.vscode/extensions.json
