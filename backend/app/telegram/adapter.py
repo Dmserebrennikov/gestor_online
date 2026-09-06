@@ -4,13 +4,20 @@ from app.domain.models import InboundMessage, MediaAttachment, MediaKind
 
 
 def adapt_update(update: dict[str, Any]) -> InboundMessage | None:
-    """Normalize a Telegram Update into InboundMessage, or None if not processable."""
+    """Normalize a Telegram Update into InboundMessage, or None if not processable.
+
+    Only human senders with a Telegram user id are accepted. Bots, anonymous
+    admins, and other messages without ``from.id`` are skipped.
+    """
     message = update.get("message") or update.get("edited_message")
     if not isinstance(message, dict):
         return None
 
-    from_user = message.get("from") or {}
-    if from_user.get("is_bot"):
+    from_user = message.get("from")
+    if not isinstance(from_user, dict) or from_user.get("is_bot"):
+        return None
+    user_id = from_user.get("id")
+    if user_id is None:
         return None
 
     chat = message.get("chat") or {}
@@ -22,12 +29,16 @@ def adapt_update(update: dict[str, Any]) -> InboundMessage | None:
     text = message.get("text") or message.get("caption")
     caption = message.get("caption")
     attachments = _extract_attachments(message, caption)
+    first_name = from_user.get("first_name")
+    username = from_user.get("username")
+    display_name = first_name or username
 
     return InboundMessage(
         update_id=int(update["update_id"]),
         chat_id=int(chat_id),
         thread_id=message.get("message_thread_id"),
-        user_id=from_user.get("id"),
+        user_id=int(user_id),
+        user_display_name=str(display_name) if display_name else None,
         text=text,
         attachments=attachments,
         telegram_message_id=int(message_id),

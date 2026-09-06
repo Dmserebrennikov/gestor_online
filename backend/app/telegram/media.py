@@ -1,15 +1,11 @@
 import logging
 from pathlib import Path
 
-import httpx
-
-from app.config import settings
 from app.domain.models import InboundMessage, MediaAttachment, MediaKind
+from app.telegram.http import download_file, get_method
 
 logger = logging.getLogger(__name__)
 
-TG_BASE_URL = "https://api.telegram.org"
-BOT_ID = f"bot{settings.telegram_bot_token}"
 DOWNLOAD_TIMEOUT = 30.0
 MEDIA_DIR = Path(__file__).resolve().parents[2] / "media"
 
@@ -45,23 +41,16 @@ async def store_inbound_attachments(inbound: InboundMessage) -> None:
 
 async def download_telegram_file(attachment: MediaAttachment) -> Path:
     """Resolve a Telegram attachment by file_id and download it to internal storage under media/<kind>/."""
-    async with httpx.AsyncClient(timeout=DOWNLOAD_TIMEOUT) as client:
-        url = f"{TG_BASE_URL}/{BOT_ID}/getFile"
-        meta_response = await client.get(url, params={"file_id": attachment.telegram_file_id})
-        meta_response.raise_for_status()
-        meta = meta_response.json()
-        if not meta.get("ok"):
-            raise RuntimeError(f"Telegram getFile failed: {meta}")
-
-        result = meta["result"]
-        file_path = result["file_path"]
-        unique_id = result.get("file_unique_id") or attachment.file_unique_id or attachment.telegram_file_id
-        dest = _destination(attachment.kind, unique_id, file_path, attachment.file_name)
-
-        url = f"{TG_BASE_URL}/file/{BOT_ID}/{file_path}"
-        file_response = await client.get(url)
-        file_response.raise_for_status()
-        dest.write_bytes(file_response.content)
+    meta = await get_method(
+        "getFile",
+        {"file_id": attachment.telegram_file_id},
+        DOWNLOAD_TIMEOUT,
+    )
+    result = meta["result"]
+    file_path = result["file_path"]
+    unique_id = result.get("file_unique_id") or attachment.file_unique_id or attachment.telegram_file_id
+    dest = _destination(attachment.kind, unique_id, file_path, attachment.file_name)
+    dest.write_bytes(await download_file(file_path, DOWNLOAD_TIMEOUT))
 
     logger.info("Downloaded Telegram file file_id=%s path=%s", attachment.telegram_file_id, dest)
     return dest
