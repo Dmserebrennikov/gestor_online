@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -25,9 +25,10 @@ class InboundMessage(BaseModel):
 
     update_id: int
     chat_id: int
-    thread_id: int | None = None
-    user_id: int | None = None
-    text: str | None = None
-    attachments: list[MediaAttachment] = Field(default_factory=list)
     telegram_message_id: int
+    user_id: int
+    thread_id: int | None = None
+    user_display_name: str | None = None
+    text: str | None = None
+    attachments: Annotated[list[MediaAttachment], Field(default_factory=list)]
     raw_update: dict[str, Any] | None = None
