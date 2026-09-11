@@ -32,6 +32,7 @@ def adapt_update(update: dict[str, Any]) -> InboundMessage | None:
     first_name = from_user.get("first_name")
     username = from_user.get("username")
     display_name = first_name or username
+    media_group_id = message.get("media_group_id")
 
     return InboundMessage(
         update_id=int(update["update_id"]),
@@ -40,6 +41,7 @@ def adapt_update(update: dict[str, Any]) -> InboundMessage | None:
         user_id=int(user_id),
         user_display_name=str(display_name) if display_name else None,
         text=text,
+        media_group_id=str(media_group_id) if media_group_id else None,
         attachments=attachments,
         telegram_message_id=int(message_id),
         raw_update=update,
@@ -50,7 +52,7 @@ def _extract_attachments(
     message: dict[str, Any],
     caption: str | None,
 ) -> list[MediaAttachment]:
-    """Collect photo/video/document/audio/voice attachments from a message."""
+    """Collect photo/sticker/animation plus video/document/audio/voice attachments."""
     attachments: list[MediaAttachment] = []
 
     photos = message.get("photo")
@@ -64,12 +66,35 @@ def _extract_attachments(
             )
         )
 
+    sticker = message.get("sticker")
+    if isinstance(sticker, dict) and not sticker.get("is_animated") and not sticker.get("is_video"):
+        attachments.append(
+            _attachment_from_file(
+                kind="sticker",
+                file_obj=sticker,
+                caption=caption,
+                default_mime="image/webp",
+            )
+        )
+
+    animation = message.get("animation")
+    if isinstance(animation, dict):
+        attachments.append(
+            _attachment_from_file(
+                kind="animation",
+                file_obj=animation,
+                caption=caption,
+            )
+        )
+
+    # Animation messages also set ``document`` for backward compatibility.
     media_fields: list[tuple[MediaKind, str]] = [
         ("video", "video"),
-        ("document", "document"),
         ("audio", "audio"),
         ("voice", "voice"),
     ]
+    if not isinstance(animation, dict):
+        media_fields.insert(1, ("document", "document"))
     for kind, key in media_fields:
         file_obj = message.get(key)
         if isinstance(file_obj, dict):
@@ -89,13 +114,14 @@ def _attachment_from_file(
     kind: MediaKind,
     file_obj: dict[str, Any],
     caption: str | None,
+    default_mime: str | None = None,
 ) -> MediaAttachment:
     """Build a MediaAttachment from a Telegram file object (no download)."""
     return MediaAttachment(
         kind=kind,
         telegram_file_id=file_obj["file_id"],
         file_unique_id=file_obj.get("file_unique_id"),
-        mime_type=file_obj.get("mime_type"),
+        mime_type=file_obj.get("mime_type") or default_mime,
         file_name=file_obj.get("file_name"),
         local_path=None,
         extracted_text=None,

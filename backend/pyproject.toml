@@ -19,6 +19,8 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0",
     "alembic>=1.19.1",
     "telegramify-markdown>=1.2.0",
+    "pillow>=11.0.0",
+    "pillow-heif>=0.22.0",
 ]
 
 [build-system]
@@ -31,10 +33,15 @@ packages = ["app"]
 [dependency-groups]
 dev = [
     "ruff>=0.12.0",
+    "pytest>=8.0.0",
 ]
 
 [tool.uv]
 package = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120

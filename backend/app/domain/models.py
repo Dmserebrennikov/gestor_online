@@ -4,7 +4,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 
-MediaKind = Literal["photo", "video", "document", "audio", "voice", "other"]
+MediaKind = Literal["photo", "video", "document", "audio", "voice", "sticker", "animation", "other"]
 
 
 class MediaAttachment(BaseModel):
@@ -30,5 +30,6 @@ class InboundMessage(BaseModel):
     thread_id: int | None = None
     user_display_name: str | None = None
     text: str | None = None
+    media_group_id: str | None = None
     attachments: Annotated[list[MediaAttachment], Field(default_factory=list)]
     raw_update: dict[str, Any] | None = None

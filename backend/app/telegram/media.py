@@ -15,12 +15,19 @@ _DEFAULT_EXTENSION: dict[MediaKind, str] = {
     "document": ".bin",
     "audio": ".mp3",
     "voice": ".ogg",
+    "sticker": ".webp",
+    "animation": ".mp4",
     "other": ".bin",
 }
 
 
 async def store_inbound_attachments(inbound: InboundMessage) -> None:
-    """Download every inbound attachment into media/<kind>/."""
+    """Download every attachment on this inbound into media/<kind>/.
+
+    Call after ``wait_for_full_send`` so a split send is already one inbound
+    with every file_id. Each getFile can take seconds; that is independent of
+    the 0.8s webhook grouping timer.
+    """
     for attachment in inbound.attachments:
         try:
             attachment.local_path = await download_telegram_file(attachment)
