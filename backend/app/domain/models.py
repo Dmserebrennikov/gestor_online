@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -29,7 +29,10 @@ class InboundMessage(BaseModel):
     user_id: int
     thread_id: int | None = None
     user_display_name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    username: str | None = None
+    language_code: str | None = None
     text: str | None = None
     media_group_id: str | None = None
     attachments: Annotated[list[MediaAttachment], Field(default_factory=list)]
-    raw_update: dict[str, Any] | None = None

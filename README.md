@@ -5,7 +5,7 @@ Async FastAPI backend: Telegram forum-topic messages → LangChain LLM reply in 
 ## Current stages
 
 - **Stage 1** — webhook + normalize to `InboundMessage` / `MediaAttachment`
-- **Stage 2** — inbound files downloaded into `backend/media/<kind>/`; 👀 reaction on the user message
+- **Stage 2** — inbound files downloaded into `var/media/<kind>/`; 👀 reaction on the user message
 - **Stage 3** — persist every turn in Postgres; last N messages of the **whole topic** (speaker-labeled) go to LangChain (DeepSeek V4 Flash by default); reply in the same topic
 
 Endpoints:
@@ -13,7 +13,7 @@ Endpoints:
 - `POST /telegram/webhook` — validates `X-Telegram-Bot-Api-Secret-Token`, maps the Update, returns `{"ok": true}` immediately, then in a background task waits for sibling updates of the same send, downloads attachments, and generates the LLM reply
 - `GET /health` — liveness check
 
-Attachments (photo, video, document, audio, voice, static sticker, animation) are saved under `backend/media/<kind>/`. Raster images on the **current** user turn — including image documents, HEIC/AVIF/BMP/TIFF (converted to JPEG), static stickers, and GIF animations — are sent to a vision model as pixels. Older photo turns stay as text notes. Telegram albums (`media_group_id`) are coalesced into one turn. With the default DeepSeek Flash text model, image turns auto-route to `deepseek-v4-flash-vision-exp`. Override with `LLM_VISION_MODEL`.
+Attachments (photo, video, document, audio, voice, static sticker, animation) are saved under `var/media/<kind>/` (override with `MEDIA_DIR`). Voice and audio files are transcribed with the OpenAI transcription API (`gpt-4o-mini-transcribe` by default, needs `OPENAI_API_KEY`); the transcript is stored with the turn and the model reads it as spoken text. Raster images on the **current** user turn — including image documents, HEIC/AVIF/BMP/TIFF (converted to JPEG), static stickers, and GIF animations — are sent to the model as pixels. Older photo turns stay as text notes. Telegram albums (`media_group_id`) are coalesced into one turn. The default `deepseek/deepseek-flash` model has native vision; set `LLM_VISION_MODEL` only to force a different model on image turns.
 
 ### Memory (Stage 3 vs later)
 
@@ -83,11 +83,17 @@ Edit the **root** `.env`:
 - `TELEGRAM_BOT_TOKEN` — from [@BotFather](https://t.me/BotFather)
 - `TELEGRAM_WEBHOOK_SECRET` — long random string; must match the `secret_token` you pass to `setWebhook`
 - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT` — required for `docker compose` (copy from `.env.example`). `POSTGRES_ENGINE` / `POSTGRES_HOST` are for the app only.
-- `LLM_MODEL` — `provider/model` (default `deepseek/deepseek-v4-flash`). Prefixes: `deepseek/`, `openai/`, `anthropic/`, `google/` (maps to LangChain `google_genai`), `ollama/`
-- `LLM_VISION_MODEL` — optional. Used when a turn includes images. Unset: DeepSeek Flash auto-routes to `deepseek-v4-flash-vision-exp`; Gemini / GPT / Claude reuse `LLM_MODEL`.
+- `TELEGRAM_ALLOWED_CHAT_IDS` — comma-separated chat ids the bot will serve. Empty means deny all chats.
+- `TELEGRAM_ALLOWED_USER_IDS` — optional. Empty means any user inside an allowed chat; otherwise only listed users.
+- `MEDIA_DIR` — attachment archive root (default `<repo>/var/media`).
+- `LLM_MODEL` — `provider/model` (default `deepseek/deepseek-flash`). Prefixes: `deepseek/`, `openai/`, `anthropic/`, `google/` (maps to LangChain `google_genai`), `ollama/`
+- `LLM_VISION_MODEL` — optional. Used when a turn includes images. Unset: reuse `LLM_MODEL` (DeepSeek Flash has native vision).
 - `DEEPSEEK_API_KEY` — required for the default model. Other providers: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` (uncomment in `.env.example`). These stay out of `Settings`; the app loads `.env` into the process environment so LangChain can read them.
 - `LLM_HISTORY_MAX_MESSAGES` — working-memory window (default 20)
 - `LLM_REQUEST_TIMEOUT` — optional override (seconds)
+- `STT_MODEL` — OpenAI transcription model for voice/audio notes (default `gpt-4o-mini-transcribe`). Requires `OPENAI_API_KEY`.
+- `STT_LANGUAGE` — fallback language hint (ISO-639-1, default `es`) when Telegram sends no `language_code`. Empty: no hint.
+- `STT_TIMEOUT` — transcription request timeout (seconds, default 60)
 
 The system prompt is **not** in `.env`. Edit [`backend/app/llm/prompts.py`](backend/app/llm/prompts.py).
 
@@ -240,7 +246,7 @@ cloudflared tunnel run telegram
 3. The bot should show typing, then reply in the same topic with the model (not a canned ack).
 4. A second person in the same topic asks a follow-up that depends on the first message — the bot should use the shared window.
 5. Restart uvicorn, send another follow-up — it should still remember (history is in Postgres).
-6. Attachments should appear under `backend/media/photo/`, `video/`, `document/`, `audio/`, or `voice/`.
+6. Attachments should appear under `var/media/photo/`, `video/`, `document/`, `audio/`, or `voice/` (or `$MEDIA_DIR/<kind>/`).
 
 ### Project layout
 
@@ -257,9 +263,12 @@ backend/
     config.py
     api/telegram.py
     telegram/adapter.py
+    telegram/allowlist.py
+    telegram/dedupe.py
     telegram/http.py
     telegram/media.py
     telegram/sender.py
+    domain/identity.py
     domain/models.py
     db/models.py
     db/session.py

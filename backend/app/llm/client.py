@@ -18,7 +18,6 @@ _PROVIDER_API_KEYS = {
     "google_genai": "GOOGLE_API_KEY",
 }
 
-_DEFAULT_DEEPSEEK_VISION = "deepseek/deepseek-v4-flash-vision-exp"
 _chat_models: dict[str, BaseChatModel] = {}
 
 
@@ -31,14 +30,11 @@ def parse_llm_model(value: str) -> tuple[str | None, str]:
 
 
 def resolve_llm_model(*, vision: bool = False) -> str:
-    """Pick the text model, or a vision-capable one when the request has images."""
+    """Pick the text model, or `llm_vision_model` when the request has images."""
     if vision:
         configured = (settings.llm_vision_model or "").strip()
         if configured:
             return configured
-        _, model = parse_llm_model(settings.llm_model)
-        if model == "deepseek-v4-flash":
-            return _DEFAULT_DEEPSEEK_VISION
     return settings.llm_model
 
 

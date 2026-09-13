@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from app.domain.models import InboundMessage, MediaAttachment
-from app.telegram.media import MEDIA_DIR
+from app.telegram.media import media_root
 
 logger = logging.getLogger(__name__)
 
@@ -340,4 +340,4 @@ def _confined_media_path(path: Path) -> Path | None:
 
 
 def _media_root() -> Path:
-    return MEDIA_DIR.resolve()
+    return media_root()

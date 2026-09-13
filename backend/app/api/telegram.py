@@ -6,8 +6,11 @@ from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request, 
 from app.config import settings
 from app.domain.models import InboundMessage
 from app.llm.pipeline import respond_to_inbound
+from app.llm.transcription import transcribe_inbound_attachments
 from app.telegram.adapter import adapt_update
 from app.telegram.album import wait_for_full_send
+from app.telegram.allowlist import inbound_is_allowed
+from app.telegram.dedupe import seen_update
 from app.telegram.media import store_inbound_attachments
 from app.telegram.sender import send_bot_reaction
 
@@ -51,9 +54,22 @@ async def telegram_webhook(
     validate_token(x_telegram_bot_api_secret_token, settings.telegram_webhook_secret)
 
     update: dict[str, Any] = await request.json()
+    raw_update_id = update.get("update_id")
+    if raw_update_id is not None and seen_update(int(raw_update_id)):
+        logger.info("Duplicate update_id=%s ignored", raw_update_id)
+        return {"ok": True}
+
     inbound = adapt_update(update)
     if inbound is None:
         logger.debug("Ignoring unprocessable update_id=%s", update.get("update_id"))
+        return {"ok": True}
+
+    if not inbound_is_allowed(chat_id=inbound.chat_id, user_id=inbound.user_id):
+        logger.info(
+            "Rejected inbound chat_id=%s user_id=%s (not allowlisted)",
+            inbound.chat_id,
+            inbound.user_id,
+        )
         return {"ok": True}
 
     try:
@@ -96,6 +112,8 @@ async def _respond_when_complete(inbound: InboundMessage) -> None:
     2. ``store_inbound_attachments`` — fetch bytes for every file_id already
        on the merged inbound. One file can take several seconds; that does
        not reopen the grouping window.
+    3. ``transcribe_inbound_attachments`` — speech-to-text on voice/audio so
+       the reply pipeline sees spoken words as text.
 
     Earlier sibling tasks return here when step 1 yields None. Only the last
     waiter downloads and calls the reply pipeline.
@@ -120,4 +138,5 @@ async def _respond_when_complete(inbound: InboundMessage) -> None:
             for a in full_inbound.attachments
         ],
     )
+    await transcribe_inbound_attachments(full_inbound)
     await respond_to_inbound(full_inbound)

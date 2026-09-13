@@ -10,17 +10,30 @@ async def upsert_user(
     session: AsyncSession,
     telegram_user_id: int,
     display_name: str | None,
+    *,
+    username: str | None = None,
+    last_name: str | None = None,
+    language_code: str | None = None,
 ) -> User:
     """Insert the speaker and(or) return the existing row in one statement.
 
     Ensuring the row exists and getting it back in one go.
-    Optionally refreshes `display_name` if it's changed.
+    Optionally refreshes identity fields when Telegram sends a new value.
     """
-    stmt = insert(User).values(telegram_user_id=telegram_user_id, display_name=display_name)
+    stmt = insert(User).values(
+        telegram_user_id=telegram_user_id,
+        display_name=display_name,
+        username=username,
+        last_name=last_name,
+        language_code=language_code,
+    )
     stmt = stmt.on_conflict_do_update(
         index_elements=[User.telegram_user_id],
         set_={
             "display_name": func.coalesce(stmt.excluded.display_name, User.display_name),
+            "username": func.coalesce(stmt.excluded.username, User.username),
+            "last_name": func.coalesce(stmt.excluded.last_name, User.last_name),
+            "language_code": func.coalesce(stmt.excluded.language_code, User.language_code),
             "updated_at": func.now(),
         },
     ).returning(User)
