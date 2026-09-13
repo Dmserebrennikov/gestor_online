@@ -1,15 +1,17 @@
 from typing import Any
 
+from app.domain.identity import compose_display_name
 from app.domain.models import InboundMessage, MediaAttachment, MediaKind
 
 
 def adapt_update(update: dict[str, Any]) -> InboundMessage | None:
     """Normalize a Telegram Update into InboundMessage, or None if not processable.
 
-    Only human senders with a Telegram user id are accepted. Bots, anonymous
-    admins, and other messages without ``from.id`` are skipped.
+    Only new ``message`` updates from human senders with a Telegram user id
+    are accepted. ``edited_message``, ``channel_post``, bots, anonymous
+    admins, and other payloads without ``from.id`` are skipped.
     """
-    message = update.get("message") or update.get("edited_message")
+    message = update.get("message")
     if not isinstance(message, dict):
         return None
 
@@ -30,8 +32,9 @@ def adapt_update(update: dict[str, Any]) -> InboundMessage | None:
     caption = message.get("caption")
     attachments = _extract_attachments(message, caption)
     first_name = from_user.get("first_name")
+    last_name = from_user.get("last_name")
     username = from_user.get("username")
-    display_name = first_name or username
+    language_code = from_user.get("language_code")
     media_group_id = message.get("media_group_id")
 
     return InboundMessage(
@@ -39,12 +42,18 @@ def adapt_update(update: dict[str, Any]) -> InboundMessage | None:
         chat_id=int(chat_id),
         thread_id=message.get("message_thread_id"),
         user_id=int(user_id),
-        user_display_name=str(display_name) if display_name else None,
+        user_display_name=compose_display_name(
+            str(first_name) if first_name else None,
+            str(last_name) if last_name else None,
+        ),
+        first_name=str(first_name) if first_name else None,
+        last_name=str(last_name) if last_name else None,
+        username=str(username) if username else None,
+        language_code=str(language_code) if language_code else None,
         text=text,
         media_group_id=str(media_group_id) if media_group_id else None,
         attachments=attachments,
         telegram_message_id=int(message_id),
-        raw_update=update,
     )
 
 

@@ -1,13 +1,19 @@
 import logging
 from pathlib import Path
 
+from app.config import settings
 from app.domain.models import InboundMessage, MediaAttachment, MediaKind
 from app.telegram.http import download_file, get_method
 
 logger = logging.getLogger(__name__)
 
 DOWNLOAD_TIMEOUT = 30.0
-MEDIA_DIR = Path(__file__).resolve().parents[2] / "media"
+
+
+def media_root() -> Path:
+    """Resolved archive root from ``MEDIA_DIR`` (default ``<repo>/var/media``)."""
+    return settings.media_dir.resolve()
+
 
 _DEFAULT_EXTENSION: dict[MediaKind, str] = {
     "photo": ".jpg",
@@ -65,7 +71,7 @@ async def download_telegram_file(attachment: MediaAttachment) -> Path:
 
 def _destination(kind: MediaKind, unique_id: str, file_path: str, file_name: str | None) -> Path:
     """Build 'media/<kind>/<unique_name>.<extension>' path, creating the kind folder if needed."""
-    dest_dir = MEDIA_DIR / kind
+    dest_dir = media_root() / kind
     dest_dir.mkdir(parents=True, exist_ok=True)
     return dest_dir / f"{_safe_name(unique_id)}{_extension(file_path, file_name, kind)}"
 
